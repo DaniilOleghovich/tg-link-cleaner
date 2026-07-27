@@ -1,0 +1,57 @@
+# Project exclude paths
+/node_modules/
+/node_modules/@grammyjs/types/LICENSE
+/node_modules/@grammyjs/types/mod.js
+/node_modules/@grammyjs/types/README.md
+/node_modules/abort-controller/
+/node_modules/dotenv/
+/node_modules/event-target-shim/
+/node_modules/grammy/LICENSE
+/node_modules/grammy/out/bot.js
+/node_modules/grammy/out/composer.js
+/node_modules/grammy/out/context.js
+/node_modules/grammy/out/convenience/constants.js
+/node_modules/grammy/out/convenience/frameworks.js
+/node_modules/grammy/out/convenience/inline_query.js
+/node_modules/grammy/out/convenience/input_media.js
+/node_modules/grammy/out/convenience/keyboard.js
+/node_modules/grammy/out/convenience/session.js
+/node_modules/grammy/out/convenience/webhook.js
+/node_modules/grammy/out/core/api.js
+/node_modules/grammy/out/core/client.js
+/node_modules/grammy/out/core/error.js
+/node_modules/grammy/out/core/payload.js
+/node_modules/grammy/out/filter.js
+/node_modules/grammy/out/mod.js
+/node_modules/grammy/out/platform.node.js
+/node_modules/grammy/out/shim.node.js
+/node_modules/grammy/out/types.js
+/node_modules/grammy/out/types.node.js
+/node_modules/grammy/out/web.mjs
+/node_modules/grammy/README.md
+/node_modules/pg/LICENSE
+/node_modules/pg/README.md
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# Dependencies
+node_modules/
+
+# Logs
+*.log
+npm-debug.log*
+pm2.log
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+
+# PM2 runtime
+.pm2/
+/.idea/
