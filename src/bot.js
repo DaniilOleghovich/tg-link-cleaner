@@ -6,7 +6,7 @@ import {
     cmdSettings,
     cmdToggleFilter,
     cmdWhitelistAdd,
-    cmdWhitelistRemove,
+    cmdWhitelistRemove, cmdWhitelistUserAdd, cmdWhitelistUserRemove,
 } from './handlers/commands.js';
 
 const bot = new Bot(config.botToken);
@@ -15,6 +15,8 @@ bot.command('settings', adminOnly, cmdSettings);
 bot.command('toggle_filter', adminOnly, cmdToggleFilter);
 bot.command('whitelist_add', adminOnly, cmdWhitelistAdd);
 bot.command('whitelist_remove', adminOnly, cmdWhitelistRemove);
+bot.command('whitelist_user_add', adminOnly, cmdWhitelistUserAdd);
+bot.command('whitelist_user_remove', adminOnly, cmdWhitelistUserRemove);
 
 bot.on('message', handleMessage);
 

@@ -38,3 +38,26 @@ export async function listWhitelistDomains(chatId) {
 );
     return rows.map(r => r.domain);
 }
+
+export async function addWhitelistUser(chatId, userId) {
+    await pool.query(
+        `INSERT INTO whitelist_users (chat_id, user_id) VALUES ($1, $2)
+     ON CONFLICT DO NOTHING`,
+        [chatId, userId]
+    );
+}
+
+export async function removeWhitelistUser(chatId, userId) {
+    await pool.query(
+        DELETE FROM whitelist_users WHERE chat_id = $1 AND user_id = $2,
+        [chatId, userId]
+);
+}
+
+export async function listWhitelistUsers(chatId) {
+    const { rows } = await pool.query(
+        SELECT user_id FROM whitelist_users WHERE chat_id = $1 ORDER BY user_id,
+        [chatId]
+);
+    return rows.map(r => r.user_id);
+}
