@@ -18,8 +18,23 @@ export async function isUserWhitelisted(chatId, userId) {
 
 export async function addWhitelistDomain(chatId, domain) {
     await pool.query(
-        `INSERT INTO whitelist_domains (chat_id, domain) VALUES ($1, $2)
-     ON CONFLICT DO NOTHING`,
+        `INSERT INTO whitelist_domains (chat_id, domain)
+         VALUES ($1, $2) ON CONFLICT DO NOTHING`,
         [chatId, domain]
     );
+}
+
+export async function removeWhitelistDomain(chatId, domain) {
+    await pool.query(
+        DELETE FROM whitelist_domains WHERE chat_id = $1 AND domain = $2,
+        [chatId, domain]
+);
+}
+
+export async function listWhitelistDomains(chatId) {
+    const { rows } = await pool.query(
+        SELECT domain FROM whitelist_domains WHERE chat_id = $1 ORDER BY domain,
+        [chatId]
+);
+    return rows.map(r => r.domain);
 }

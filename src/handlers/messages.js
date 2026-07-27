@@ -1,5 +1,5 @@
-import { getChatSettings, ensureChat } from '../db/repository/chat.js';
-import { isDomainWhitelisted, isUserWhitelisted } from '../db/repository/whitelist.js';
+import { getChatSettings, ensureChat } from '../db/repositories/chats.js';
+import { isDomainWhitelisted, isUserWhitelisted } from '../db/repositories/whitelist.js';
 import { extractLinks, getDomain } from '../utils/link-detector.js';
 
 export async function handleMessage(ctx) {
