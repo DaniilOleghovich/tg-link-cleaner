@@ -1,6 +1,11 @@
 import { getChatSettings, setFilterEnabled, ensureChat } from '../db/repositories/chats.js';
 import { addWhitelistDomain, removeWhitelistDomain, listWhitelistDomains } from '../db/repositories/whitelist.js';
 import { getDomain } from '../utils/link-detector.js';
+import {
+    addWhitelistUser,
+    removeWhitelistUser,
+    listWhitelistUsers,
+} from '../db/repositories/whitelist.js';
 
 export async function cmdSettings(ctx) {
     await ensureChat(ctx.chat.id);
@@ -45,12 +50,6 @@ export async function cmdWhitelistRemove(ctx) {
     await removeWhitelistDomain(ctx.chat.id, domain);
     await ctx.reply(`Домен ${domain} удалён из белого списка.`);
 }
-
-import {
-    addWhitelistUser,
-    removeWhitelistUser,
-    listWhitelistUsers,
-} from '../db/repositories/whitelist.js';
 
 export async function cmdWhitelistUserAdd(ctx) {
     const target = ctx.message.reply_to_message?.from;
