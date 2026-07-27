@@ -9,10 +9,10 @@ export async function cmdSettings(ctx) {
     const userIds = await listWhitelistUsers(ctx.chat.id);
 
     await ctx.reply(
-        Настройки чата:\n +
+        `Настройки чата:\n +
     Фильтр ссылок: ${settings.filter_enabled ? 'включен' : 'выключен'}\n +
     Разрешённые домены: ${domains.length ? domains.join(', ') : 'нет'}\n +
-    Разрешённые пользователи (ID): ${userIds.length ? userIds.join(', ') : 'нет'}
+    Разрешённые пользователи (ID): ${userIds.length ? userIds.join(', ') : 'нет'}`
 );
 }
 

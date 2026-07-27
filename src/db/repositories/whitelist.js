@@ -2,7 +2,7 @@ import { pool } from '../pool.js';
 
 export async function isDomainWhitelisted(chatId, domain) {
     const { rows } = await pool.query(
-        SELECT 1 FROM whitelist_domains WHERE chat_id = $1 AND domain = $2,
+        `SELECT 1 FROM whitelist_domains WHERE chat_id = $1 AND domain = $2`,
         [chatId, domain]
 );
     return rows.length > 0;
@@ -10,7 +10,7 @@ export async function isDomainWhitelisted(chatId, domain) {
 
 export async function isUserWhitelisted(chatId, userId) {
     const { rows } = await pool.query(
-        SELECT 1 FROM whitelist_users WHERE chat_id = $1 AND user_id = $2,
+        `SELECT 1 FROM whitelist_users WHERE chat_id = $1 AND user_id = $2`,
         [chatId, userId]
 );
     return rows.length > 0;
@@ -26,14 +26,14 @@ export async function addWhitelistDomain(chatId, domain) {
 
 export async function removeWhitelistDomain(chatId, domain) {
     await pool.query(
-        DELETE FROM whitelist_domains WHERE chat_id = $1 AND domain = $2,
+        `DELETE FROM whitelist_domains WHERE chat_id = $1 AND domain = $2`,
         [chatId, domain]
 );
 }
 
 export async function listWhitelistDomains(chatId) {
     const { rows } = await pool.query(
-        SELECT domain FROM whitelist_domains WHERE chat_id = $1 ORDER BY domain,
+        `SELECT domain FROM whitelist_domains WHERE chat_id = $1 ORDER BY domain`,
         [chatId]
 );
     return rows.map(r => r.domain);
@@ -49,14 +49,14 @@ export async function addWhitelistUser(chatId, userId) {
 
 export async function removeWhitelistUser(chatId, userId) {
     await pool.query(
-        DELETE FROM whitelist_users WHERE chat_id = $1 AND user_id = $2,
+        `DELETE FROM whitelist_users WHERE chat_id = $1 AND user_id = $2`,
         [chatId, userId]
 );
 }
 
 export async function listWhitelistUsers(chatId) {
     const { rows } = await pool.query(
-        SELECT user_id FROM whitelist_users WHERE chat_id = $1 ORDER BY user_id,
+        `SELECT user_id FROM whitelist_users WHERE chat_id = $1 ORDER BY user_id`,
         [chatId]
 );
     return rows.map(r => r.user_id);

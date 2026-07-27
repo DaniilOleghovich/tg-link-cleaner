@@ -10,7 +10,7 @@ export async function ensureChat(chatId) {
 
 export async function getChatSettings(chatId) {
     const { rows } = await pool.query(
-        SELECT * FROM chats WHERE chat_id = $1,
+        `SELECT * FROM chats WHERE chat_id = $1`,
         [chatId]
 );
     return rows[0] ?? null;
@@ -18,7 +18,7 @@ export async function getChatSettings(chatId) {
 
 export async function setFilterEnabled(chatId, enabled) {
     await pool.query(
-        UPDATE chats SET filter_enabled = $2 WHERE chat_id = $1,
+        `UPDATE chats SET filter_enabled = $2 WHERE chat_id = $1`,
         [chatId, enabled]
 );
 }

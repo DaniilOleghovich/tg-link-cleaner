@@ -17,7 +17,7 @@ export function extractLinks(message) {
 
 export function getDomain(url) {
     try {
-        const normalized = url.startsWith('http') ? url : https://${url};
+        const normalized = url.startsWith('http') ? url : 'https:'//${url};
         return new URL(normalized).hostname.replace(/^www\./, '');
     } catch {
         return null;
