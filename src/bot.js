@@ -1,6 +1,6 @@
 import { Bot } from 'grammy';
 import { config } from './config.js';
-import { handleMessage } from './handlers/message.js';
+import { handleMessage } from './handlers/messages.js';
 import { adminOnly } from './middlewares/admin-only.js';
 import {
     cmdSettings,
