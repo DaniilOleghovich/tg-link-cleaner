@@ -16,3 +16,10 @@ export async function countRecentViolations(chatId, userId, windowMinutes = 10) 
     );
     return parseInt(rows[0].count, 10);
 }
+
+export async function clearViolations(chatId, userId) {
+    await pool.query(
+        `DELETE FROM link_violations WHERE chat_id = $1 AND user_id = $2`,
+        [chatId, userId]
+);
+}

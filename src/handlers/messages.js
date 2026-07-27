@@ -1,7 +1,7 @@
 import { getChatSettings, ensureChat } from '../db/repositories/chats.js';
 import { isDomainWhitelisted, isUserWhitelisted } from '../db/repositories/whitelist.js';
 import { extractLinks, getDomain } from '../utils/link-detector.js';
-import { recordViolation, countRecentViolations } from '../db/repositories/violations.js';
+import {recordViolation, countRecentViolations, clearViolations} from '../db/repositories/violations.js';
 
 const WARNING_LIFETIME_MS = 12000;
 const VIOLATION_WINDOW_MINUTES = 10;
@@ -65,6 +65,8 @@ async function muteUser(ctx, userId) {
             until_date: untilDate,
         });
 
+        await clearViolations(ctx.chat.id, userId);
+
         await ctx.reply(
             `${nameOrMention(ctx.from)} получил мут на ${MUTE_DURATION_MINUTES} мин. за повторную отправку ссылок.`
     );
@@ -76,7 +78,7 @@ async function muteUser(ctx, userId) {
 async function sendAutoDeleteWarning(ctx, violations) {
     try {
         const warning = await ctx.reply(
-            `${nameOrMention(ctx.from)}, отправлять ссылки в этом чате запрещено.  +
+            `${nameOrMention(ctx.from)}, отправлять ссылки в этом чате запрещено.
         Нарушение ${violations}/${VIOLATIONS_BEFORE_MUTE} — при следующем будет мут.`
     );
 
