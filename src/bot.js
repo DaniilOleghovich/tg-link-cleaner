@@ -1,7 +1,7 @@
 import { Bot } from 'grammy';
 import { config } from './config.js';
 import { handleMessage } from './handlers/messages.js';
-import { adminOnly } from './middlewares/admin-only.js';
+import { adminOrCreatorOnly } from './middlewares/admin-or-creator-only.js';
 import {
     cmdSettings,
     cmdToggleFilter,
@@ -11,12 +11,12 @@ import {
 
 const bot = new Bot(config.botToken);
 
-bot.command('settings', adminOnly, cmdSettings);
-bot.command('toggle_filter', adminOnly, cmdToggleFilter);
-bot.command('whitelist_add', adminOnly, cmdWhitelistAdd);
-bot.command('whitelist_remove', adminOnly, cmdWhitelistRemove);
-bot.command('whitelist_user_add', adminOnly, cmdWhitelistUserAdd);
-bot.command('whitelist_user_remove', adminOnly, cmdWhitelistUserRemove);
+bot.command('settings', adminOrCreatorOnly, cmdSettings);
+bot.command('toggle_filter', adminOrCreatorOnly, cmdToggleFilter);
+bot.command('whitelist_add', adminOrCreatorOnly, cmdWhitelistAdd);
+bot.command('whitelist_remove', adminOrCreatorOnly, cmdWhitelistRemove);
+bot.command('whitelist_user_add', adminOrCreatorOnly, cmdWhitelistUserAdd);
+bot.command('whitelist_user_remove', adminOrCreatorOnly, cmdWhitelistUserRemove);
 
 bot.on('message', handleMessage);
 

@@ -2,6 +2,7 @@ import { getChatSettings, ensureChat } from '../db/repositories/chats.js';
 import { isDomainWhitelisted, isUserWhitelisted } from '../db/repositories/whitelist.js';
 import { extractLinks, getDomain } from '../utils/link-detector.js';
 import {recordViolation, countRecentViolations, clearViolations} from '../db/repositories/violations.js';
+import {adminOrCreatorOnly} from "../middlewares/admin-or-creator-only.js";
 
 const WARNING_LIFETIME_MS = 12000;
 const VIOLATION_WINDOW_MINUTES = 10;
@@ -15,6 +16,7 @@ export async function handleMessage(ctx) {
     await ensureChat(chatId);
     const settings = await getChatSettings(chatId);
     if (!settings?.filter_enabled) return;
+    if (await adminOrCreatorOnly) return;
 
     if (await isUserWhitelisted(chatId, userId)) return;
 

@@ -1,4 +1,4 @@
-export async function adminOnly(ctx, next) {
+export async function adminOrCreatorOnly(ctx, next) {
     if (!ctx.chat || ctx.chat.type === 'private') {
         return ctx.reply('Эта команда работает только в группах.');
     }
