@@ -49,8 +49,9 @@ async function muteUser(ctx, userId) {
     const untilDate = Math.floor(Date.now() / 1000) + MUTE_DURATION_MINUTES * 60;
 
     try {
-        await ctx.api.restrictChatMember(ctx.chat.id, userId, {
-            permissions: {
+        await ctx.api.restrictChatMember(
+            ctx.chat.id,
+            userId, {
                 can_send_messages: false,
                 can_send_audios: false,
                 can_send_documents: false,
@@ -62,8 +63,8 @@ async function muteUser(ctx, userId) {
                 can_send_other_messages: false,
                 can_add_web_page_previews: false,
             },
-            until_date: untilDate,
-        });
+            {until_date: untilDate}
+        );
 
         await clearViolations(ctx.chat.id, userId);
 
