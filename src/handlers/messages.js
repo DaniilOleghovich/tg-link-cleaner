@@ -18,8 +18,6 @@ export async function handleMessage(ctx) {
     if (!settings?.filter_enabled) return;
     if (await adminOrCreatorOnly) return;
 
-    if (await isUserWhitelisted(chatId, userId)) return;
-
     const links = extractLinks(ctx.message);
     if (links.length === 0) return;
 
@@ -74,7 +72,7 @@ async function muteUser(ctx, userId) {
             `${nameOrMention(ctx.from)} получил мут на ${MUTE_DURATION_MINUTES} мин. за повторную отправку ссылок.`
     );
     } catch (err) {
-        console.error('Не удалось замутить пользователя:', err.message);
+        console.error('Не удалось замьютить пользователя:', err.message);
     }
 }
 
