@@ -6,9 +6,10 @@
     "migrate": "node src/db/migrate.js"
   },
   "dependencies": {
+    "@grammyjs/conversations": "^2.1.1",
+    "@grammyjs/i18n": "^1.1.2",
     "dotenv": "^17.4.2",
     "grammy": "^1.45.1",
     "pg": "^8.22.0"
-
   }
 }

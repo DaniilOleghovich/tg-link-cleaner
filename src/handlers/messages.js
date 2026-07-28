@@ -1,8 +1,8 @@
-import { getChatSettings, ensureChat } from '../db/repositories/chats.js';
-import { isDomainWhitelisted, isUserWhitelisted } from '../db/repositories/whitelist.js';
-import { extractLinks, getDomain } from '../utils/link-detector.js';
-import {recordViolation, countRecentViolations, clearViolations} from '../db/repositories/violations.js';
-import {adminOrCreatorOnly} from "../middlewares/admin-or-creator-only.js";
+import {ensureChat, getChatSettings} from '../db/repositories/chats.js';
+import {isDomainWhitelisted} from '../db/repositories/whitelist.js';
+import {extractLinks, getDomain} from '../utils/link-detector.js';
+import {clearViolations, countRecentViolations, recordViolation} from '../db/repositories/violations.js';
+import {checkIsAdminOrCreator} from "../utils/permissions.js";
 
 const WARNING_LIFETIME_MS = 12000;
 const VIOLATION_WINDOW_MINUTES = 10;
@@ -16,7 +16,7 @@ export async function handleMessage(ctx) {
     await ensureChat(chatId);
     const settings = await getChatSettings(chatId);
     if (!settings?.filter_enabled) return;
-    if (await adminOrCreatorOnly) return;
+    if (await checkIsAdminOrCreator(ctx, userId)) return;
 
     const links = extractLinks(ctx.message);
     if (links.length === 0) return;
