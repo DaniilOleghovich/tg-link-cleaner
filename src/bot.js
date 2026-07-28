@@ -12,6 +12,7 @@ import {
 import { cmdMenu } from './handlers/menu.js';
 import { registerMenuCallbacks } from './handlers/menuCallbacks.js';
 import { addDomainConversation } from './conversations/addDomain.js';
+import {handleNewMembers} from "./handlers/newMember.js";
 
 const bot = new Bot(config.botToken);
 
@@ -26,6 +27,8 @@ bot.command('whitelist_remove', adminOrCreatorOnly, cmdWhitelistRemove);
 bot.command('menu', adminOrCreatorOnly, cmdMenu);
 
 registerMenuCallbacks(bot);
+
+bot.on('message:new_chat_members', handleNewMembers);
 
 bot.on('message', handleMessage);
 
