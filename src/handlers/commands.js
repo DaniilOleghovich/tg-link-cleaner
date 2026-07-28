@@ -6,7 +6,6 @@ export async function cmdSettings(ctx) {
     await ensureChat(ctx.chat.id);
     const settings = await getChatSettings(ctx.chat.id);
     const domains = await listWhitelistDomains(ctx.chat.id);
-    console.log(settings);
 
     await ctx.reply(
         `Настройки чата:\n +
