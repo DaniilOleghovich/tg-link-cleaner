@@ -1,4 +1,5 @@
 import { InlineKeyboard } from 'grammy';
+import {ensureChat, getChatSettings} from "../db/repositories/chats.js";
 
 const VERIFY_TIMEOUT_MS = 30000;
 
@@ -6,10 +7,14 @@ export async function handleNewMembers(ctx) {
     const newMembers = ctx.message.new_chat_members;
     if (!newMembers || newMembers.length === 0) return;
 
+    const chatId = ctx.chat.id;
+    await ensureChat(chatId);
+    const settings = await getChatSettings(chatId);
+
+    if (!settings?.verification_enabled) return; // фича выключена — пропускаем всех
+
     for (const member of newMembers) {
-        if (member.is_bot) {
-            continue;
-        }
+        if (member.is_bot) continue;
         await startVerification(ctx, member);
     }
 }

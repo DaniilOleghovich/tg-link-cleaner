@@ -5,7 +5,7 @@ import { handleMessage } from './handlers/messages.js';
 import { adminOrCreatorOnly } from './middlewares/admin-or-creator-only.js';
 import {
     cmdSettings,
-    cmdToggleFilter,
+    cmdToggleFilter, cmdToggleVerification,
     cmdWhitelistAdd,
     cmdWhitelistRemove,
 } from './handlers/commands.js';
@@ -25,6 +25,7 @@ bot.command('toggle_filter', adminOrCreatorOnly, cmdToggleFilter);
 bot.command('whitelist_add', adminOrCreatorOnly, cmdWhitelistAdd);
 bot.command('whitelist_remove', adminOrCreatorOnly, cmdWhitelistRemove);
 bot.command('menu', adminOrCreatorOnly, cmdMenu);
+bot.command('toggle_verification', adminOrCreatorOnly, cmdToggleVerification);
 
 registerMenuCallbacks(bot);
 

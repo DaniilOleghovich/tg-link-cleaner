@@ -1,4 +1,4 @@
-import {ensureChat, getChatSettings, setFilterEnabled} from '../db/repositories/chats.js';
+import {ensureChat, getChatSettings, setFilterEnabled, setVerificationEnabled} from '../db/repositories/chats.js';
 import {addWhitelistDomain, listWhitelistDomains, removeWhitelistDomain} from '../db/repositories/whitelist.js';
 import {getDomain} from '../utils/link-detector.js';
 
@@ -8,10 +8,19 @@ export async function cmdSettings(ctx) {
     const domains = await listWhitelistDomains(ctx.chat.id);
 
     await ctx.reply(
-        `Настройки чата:\n +
-              Фильтр ссылок: ${settings.filter_enabled ? 'включен' : 'выключен'}\n +
-              Разрешённые домены: ${domains.length ? domains.join(', ') : 'нет'}`
-);
+        `Настройки чата:\n`
+        `Фильтр ссылок: ${settings.filter_enabled ? 'включен' : 'выключен'}\n`
+        `Проверка новых участников: ${settings.verification_enabled ? 'включена' : 'выключена'}\n`
+        `Разрешённые домены: ${domains.length ? domains.join(', ') : 'нет'}`
+    );
+}
+
+export async function cmdToggleVerification(ctx) {
+    await ensureChat(ctx.chat.id);
+    const settings = await getChatSettings(ctx.chat.id);
+    const newValue = !settings.verification_enabled;
+    await setVerificationEnabled(ctx.chat.id, newValue);
+    await ctx.reply(`Проверка новых участников ${newValue ? 'включена' : 'выключена'}.`);
 }
 
 export async function cmdToggleFilter(ctx) {

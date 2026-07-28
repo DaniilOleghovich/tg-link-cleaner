@@ -1,11 +1,11 @@
 import { InlineKeyboard } from 'grammy';
 import { buildMainMenuKeyboard } from './menu.js';
-import { getChatSettings, setFilterEnabled, ensureChat } from '../db/repositories/chats.js';
+import {getChatSettings, setFilterEnabled, ensureChat, setVerificationEnabled} from '../db/repositories/chats.js';
 import { listWhitelistDomains, removeWhitelistDomain } from '../db/repositories/whitelist.js';
 import { adminOnlyCallback } from '../middlewares/admin-only-callback.js';
 
 export function registerMenuCallbacks(bot) {
-    bot.callbackQuery(/^(menu|domain|filter):/, adminOnlyCallback);
+    bot.callbackQuery(/^(menu|domain|filter|verification):/, adminOnlyCallback);
 
     bot.callbackQuery('menu:filter', async (ctx) => {
         await ctx.answerCallbackQuery();
@@ -49,6 +49,7 @@ export function registerMenuCallbacks(bot) {
         await ctx.editMessageText(
             `Настройки чата:\n` +
             `Фильтр ссылок: ${settings.filter_enabled ? 'включен' : 'выключен'}\n` +
+            `Проверка новых участников: ${settings.verification_enabled ? 'включена' : 'выключена'}\n` +
             `Разрешённые домены: ${domains.length ? domains.join(', ') : 'нет'}`,
             { reply_markup: backButton() }
         );
@@ -86,6 +87,39 @@ export function registerMenuCallbacks(bot) {
             await ctx.answerCallbackQuery({ text: 'Ошибка, попробуйте позже.', show_alert: true });
         }
     });
+
+    bot.callbackQuery('menu:verification', async (ctx) => {
+        await ctx.answerCallbackQuery();
+        await renderVerificationMenu(ctx);
+    });
+
+    bot.callbackQuery('verification:enable', async (ctx) => {
+        await setVerificationEnabled(ctx.chat.id, true);
+        await ctx.answerCallbackQuery('Проверка включена');
+        await renderVerificationMenu(ctx);
+    });
+
+    bot.callbackQuery('verification:disable', async (ctx) => {
+        await setVerificationEnabled(ctx.chat.id, false);
+        await ctx.answerCallbackQuery('Проверка выключена');
+        await renderVerificationMenu(ctx);
+    });
+
+    async function renderVerificationMenu(ctx) {
+        await ensureChat(ctx.chat.id);
+        const settings = await getChatSettings(ctx.chat.id);
+        const isEnabled = settings.verification_enabled;
+
+        const keyboard = new InlineKeyboard()
+            .text(isEnabled ? '✅ Включена (текущее)' : 'Включить', 'verification:enable').row()
+            .text(!isEnabled ? '❌ Выключена (текущее)' : 'Выключить', 'verification:disable').row()
+            .text('« Назад', 'menu:back');
+
+        await ctx.editMessageText(
+            `Проверка новых участников сейчас: ${isEnabled ? '✅ включена' : '❌ выключена'}`,
+            { reply_markup: keyboard }
+        );
+    }
 
     bot.callbackQuery('menu:back', async (ctx) => {
         await ctx.answerCallbackQuery();

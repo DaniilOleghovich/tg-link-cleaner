@@ -1,0 +1,1 @@
+ALTER TABLE chats ADD COLUMN IF NOT EXISTS verification_enabled BOOLEAN NOT NULL DEFAULT false;
