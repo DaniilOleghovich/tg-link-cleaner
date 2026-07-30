@@ -69,7 +69,8 @@ async function muteUser(ctx, userId) {
         await clearViolations(ctx.chat.id, userId);
 
         await ctx.reply(
-            `${nameOrMention(ctx.from)} получил мут на ${MUTE_DURATION_MINUTES} мин. за повторную отправку ссылок.`
+            // `${nameOrMention(ctx.from)} получил мьют на ${MUTE_DURATION_MINUTES} мин. за повторную отправку ссылок.`
+            `${nameOrMention(ctx.from)} ограничен за повторную отправку ссылок.`
     );
     } catch (err) {
         console.error('Не удалось замьютить пользователя:', err.message);
@@ -80,7 +81,7 @@ async function sendAutoDeleteWarning(ctx, violations) {
     try {
         const warning = await ctx.reply(
             `${nameOrMention(ctx.from)}, отправлять ссылки в этом чате запрещено.
-        Нарушение ${violations}/${VIOLATIONS_BEFORE_MUTE} — при следующем будет мут.`
+        Нарушение ${violations}/${VIOLATIONS_BEFORE_MUTE} — при следующем будете замьючены навсегда.`
     );
 
         setTimeout(async () => {
