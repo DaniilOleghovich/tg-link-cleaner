@@ -7,7 +7,7 @@ import {checkIsAdminOrCreator} from "../utils/permissions.js";
 const WARNING_LIFETIME_MS = 12000;
 const VIOLATION_WINDOW_MINUTES = 10;
 const VIOLATIONS_BEFORE_MUTE = 3;
-const MUTE_DURATION_MINUTES = 1;
+const MUTE_DURATION_MINUTES = null;
 
 export async function handleMessage(ctx) {
     const chatId = ctx.chat.id;
@@ -63,7 +63,7 @@ async function muteUser(ctx, userId) {
                 can_send_other_messages: false,
                 can_add_web_page_previews: false,
             },
-            {until_date: untilDate}
+            // {until_date: untilDate} //mute user without time
         );
 
         await clearViolations(ctx.chat.id, userId);
