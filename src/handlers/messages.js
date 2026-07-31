@@ -1,8 +1,10 @@
 import {ensureChat, getChatSettings} from '../db/repositories/chats.js';
 import {isDomainWhitelisted} from '../db/repositories/whitelist.js';
-import {extractLinks, getDomain} from '../utils/link-detector.js';
+import {extractLinks, extractMentionUsernames, getDomain} from '../utils/link-detector.js';
 import {clearViolations, countRecentViolations, recordViolation} from '../db/repositories/violations.js';
 import {checkIsAdminOrCreator} from "../utils/permissions.js";
+import {getCachedAdmins} from "../utils/adminCache.js";
+import {listOwnerChannels} from "../db/repositories/ownerChannels.js";
 
 const WARNING_LIFETIME_MS = 12000;
 const VIOLATION_WINDOW_MINUTES = 10;
@@ -17,6 +19,40 @@ export async function handleMessage(ctx) {
     const settings = await getChatSettings(chatId);
     if (!settings?.filter_enabled) return;
     if (await checkIsAdminOrCreator(ctx, userId)) return;
+
+    const mentionedUsernames = extractMentionUsernames(ctx.message);
+
+    if (mentionedUsernames.length > 0) {
+        const { usernames: adminUsernames } = await getCachedAdmins(ctx, chatId);
+        const ownerChannels = await listOwnerChannels(chatId);
+        const ownerChannelsSet = new Set(ownerChannels);
+
+        const hasDisallowedMention = mentionedUsernames.some(u => {
+            if (adminUsernames.has(u)) return false;
+            if (ownerChannelsSet.has(u)) return false;
+            return true;
+        });
+
+        if (hasDisallowedMention) {
+            try {
+                await ctx.deleteMessage();
+            } catch (err) {
+                console.error('Не удалось удалить сообщение с упоминанием:', err.message);
+                return;
+            }
+
+            await recordViolation(chatId, userId);
+            const violations = await countRecentViolations(chatId, userId, VIOLATION_WINDOW_MINUTES);
+
+            if (violations >= VIOLATIONS_BEFORE_MUTE) {
+                await muteUser(ctx, userId);
+            } else {
+                await sendAutoDeleteWarning(ctx, violations);
+            }
+
+            return;
+        }
+    }
 
     const links = extractLinks(ctx.message);
     if (links.length === 0) return;

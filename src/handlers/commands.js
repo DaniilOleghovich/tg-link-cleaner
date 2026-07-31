@@ -1,16 +1,19 @@
 import {ensureChat, getChatSettings, setFilterEnabled, setVerificationEnabled} from '../db/repositories/chats.js';
 import {addWhitelistDomain, listWhitelistDomains, removeWhitelistDomain} from '../db/repositories/whitelist.js';
 import {getDomain} from '../utils/link-detector.js';
+import {addOwnerChannel, listOwnerChannels, removeOwnerChannel} from "../db/repositories/ownerChannels.js";
 
 export async function cmdSettings(ctx) {
     await ensureChat(ctx.chat.id);
     const settings = await getChatSettings(ctx.chat.id);
     const domains = await listWhitelistDomains(ctx.chat.id);
+    const ownerChannels = await listOwnerChannels(ctx.chat.id);
 
     await ctx.reply(
-        `Настройки чата:\n`
-        `Фильтр ссылок: ${settings.filter_enabled ? 'включен' : 'выключен'}\n`
-        `Проверка новых участников: ${settings.verification_enabled ? 'включена' : 'выключена'}\n`
+        `Настройки чата:\n` +
+        `Фильтр ссылок: ${settings.filter_enabled ? 'включен' : 'выключен'}\n` +
+        `Проверка новых участников: ${settings.verification_enabled ? 'включена' : 'выключена'}\n` +
+        `Каналы владельца: ${ownerChannels.length ? ownerChannels.map(c => '@' + c).join(', ') : 'нет'}\n` +
         `Разрешённые домены: ${domains.length ? domains.join(', ') : 'нет'}`
     );
 }
@@ -51,4 +54,25 @@ export async function cmdWhitelistRemove(ctx) {
 
     await removeWhitelistDomain(ctx.chat.id, domain);
     await ctx.reply(`Домен ${domain} удалён из белого списка.`);
+}
+
+export async function cmdOwnerChannelAdd(ctx) {
+    const username = ctx.match?.trim().replace('@', '');
+    if (!username) {
+        return ctx.reply('Использование: /owner_channel_add username');
+    }
+
+    await ensureChat(ctx.chat.id);
+    await addOwnerChannel(ctx.chat.id, username);
+    await ctx.reply(`Канал @${username} добавлен в список разрешённых.`);
+}
+
+export async function cmdOwnerChannelRemove(ctx) {
+    const username = ctx.match?.trim().replace('@', '');
+    if (!username) {
+        return ctx.reply('Использование: /owner_channel_remove username');
+    }
+
+    await removeOwnerChannel(ctx.chat.id, username);
+    await ctx.reply(`Канал @${username} удалён из списка.`);
 }

@@ -1,0 +1,1 @@
+ALTER TABLE chats ADD COLUMN IF NOT EXISTS owner_channel_username TEXT;

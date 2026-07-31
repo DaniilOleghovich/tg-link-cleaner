@@ -1,11 +1,17 @@
 import { InlineKeyboard } from 'grammy';
 import { buildMainMenuKeyboard } from './menu.js';
-import {getChatSettings, setFilterEnabled, ensureChat, setVerificationEnabled} from '../db/repositories/chats.js';
+import {
+    getChatSettings,
+    setFilterEnabled,
+    ensureChat,
+    setVerificationEnabled,
+} from '../db/repositories/chats.js';
 import { listWhitelistDomains, removeWhitelistDomain } from '../db/repositories/whitelist.js';
 import { adminOnlyCallback } from '../middlewares/admin-only-callback.js';
+import {listOwnerChannels, removeOwnerChannel} from "../db/repositories/ownerChannels.js";
 
 export function registerMenuCallbacks(bot) {
-    bot.callbackQuery(/^(menu|domain|filter|verification):/, adminOnlyCallback);
+    bot.callbackQuery(/^(menu|domain|filter|verification|owner_channel):/, adminOnlyCallback);
 
     bot.callbackQuery('menu:filter', async (ctx) => {
         await ctx.answerCallbackQuery();
@@ -121,6 +127,23 @@ export function registerMenuCallbacks(bot) {
         );
     }
 
+    bot.callbackQuery('menu:owner_channel', async (ctx) => {
+        await ctx.answerCallbackQuery();
+        await renderOwnerChannelsMenu(ctx);
+    });
+
+    bot.callbackQuery('owner_channel:add', async (ctx) => {
+        await ctx.answerCallbackQuery();
+        await ctx.conversation.enter('addOwnerChannel');
+    });
+
+    bot.callbackQuery(/^owner_channel:remove:(.+)$/, async (ctx) => {
+        const username = ctx.match[1];
+        await removeOwnerChannel(ctx.chat.id, username);
+        await ctx.answerCallbackQuery(`Канал @${username} удалён`);
+        await renderOwnerChannelsMenu(ctx);
+    });
+
     bot.callbackQuery('menu:back', async (ctx) => {
         await ctx.answerCallbackQuery();
         await ctx.editMessageText('Панель управления ботом:', {
@@ -154,6 +177,20 @@ async function renderFilterMenu(ctx) {
 
     await ctx.editMessageText(
         `Фильтр ссылок сейчас: ${isEnabled ? '✅ включен' : '❌ выключен'}`,
+        { reply_markup: keyboard }
+    );
+}
+
+async function renderOwnerChannelsMenu(ctx) {
+    const channels = await listOwnerChannels(ctx.chat.id);
+
+    const keyboard = new InlineKeyboard();
+    channels.forEach(c => keyboard.text(`❌ @${c}`, `owner_channel:remove:${c}`).row());
+    keyboard.text('➕ Добавить канал', 'owner_channel:add').row();
+    keyboard.text('« Назад', 'menu:back');
+
+    await ctx.editMessageText(
+        channels.length ? 'Разрешённые каналы владельца:' : 'Список пуст.',
         { reply_markup: keyboard }
     );
 }
