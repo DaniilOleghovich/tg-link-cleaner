@@ -9,6 +9,7 @@ import {
 import { listWhitelistDomains, removeWhitelistDomain } from '../db/repositories/whitelist.js';
 import { adminOnlyCallback } from '../middlewares/admin-only-callback.js';
 import {listOwnerChannels, removeOwnerChannel} from "../db/repositories/ownerChannels.js";
+import {trackMenu} from "../utils/menuTracker.js";
 
 export function registerMenuCallbacks(bot) {
     bot.callbackQuery(/^(menu|domain|filter|verification|owner_channel):/, adminOnlyCallback);
@@ -149,6 +150,9 @@ export function registerMenuCallbacks(bot) {
         await ctx.editMessageText('Панель управления ботом:', {
             reply_markup: buildMainMenuKeyboard(),
         });
+
+        // Сообщение то же самое, просто обновляем таймер жизни
+        trackMenu(ctx, ctx.chat.id, ctx.callbackQuery.message.message_id);
     });
 }
 

@@ -1,6 +1,6 @@
 import {ensureChat, getChatSettings, setFilterEnabled, setVerificationEnabled} from '../db/repositories/chats.js';
 import {addWhitelistDomain, listWhitelistDomains, removeWhitelistDomain} from '../db/repositories/whitelist.js';
-import {getDomain} from '../utils/link-detector.js';
+import {getDomain, isValidTelegramUsername, normalizeChannelUsername} from '../utils/link-detector.js';
 import {addOwnerChannel, listOwnerChannels, removeOwnerChannel} from "../db/repositories/ownerChannels.js";
 
 export async function cmdSettings(ctx) {
@@ -57,9 +57,18 @@ export async function cmdWhitelistRemove(ctx) {
 }
 
 export async function cmdOwnerChannelAdd(ctx) {
-    const username = ctx.match?.trim().replace('@', '');
-    if (!username) {
-        return ctx.reply('Использование: /owner_channel_add username');
+    const input = ctx.match?.trim();
+    if (!input) {
+        return ctx.reply('Использование: /owner_channel_add username (или ссылка t.me/username)');
+    }
+
+    const username = normalizeChannelUsername(input);
+
+    if (!isValidTelegramUsername(username)) {
+        return ctx.reply(
+            'Некорректный username. Требования: 5–32 символа, латиница/цифры/подчёркивание, ' +
+            'не начинается с цифры, не заканчивается подчёркиванием, без двойного подчёркивания подряд.'
+        );
     }
 
     await ensureChat(ctx.chat.id);
@@ -68,11 +77,12 @@ export async function cmdOwnerChannelAdd(ctx) {
 }
 
 export async function cmdOwnerChannelRemove(ctx) {
-    const username = ctx.match?.trim().replace('@', '');
-    if (!username) {
+    const input = ctx.match?.trim();
+    if (!input) {
         return ctx.reply('Использование: /owner_channel_remove username');
     }
 
+    const username = normalizeChannelUsername(input);
     await removeOwnerChannel(ctx.chat.id, username);
     await ctx.reply(`Канал @${username} удалён из списка.`);
 }

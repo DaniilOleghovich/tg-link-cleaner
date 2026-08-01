@@ -1,4 +1,5 @@
 import { InlineKeyboard } from 'grammy';
+import {getTrackedMenu} from "../utils/menuTracker.js";
 
 export function buildMainMenuKeyboard() {
     return new InlineKeyboard()
@@ -10,7 +11,20 @@ export function buildMainMenuKeyboard() {
 }
 
 export async function cmdMenu(ctx) {
-    await ctx.reply('Панель управления ботом:', {
+    const chatId = ctx.chat.id;
+
+    const previous = getTrackedMenu(chatId);
+    if (previous) {
+        try {
+            await ctx.api.deleteMessage(chatId, previous.messageId);
+        } catch (err) {
+            // старое меню могло быть уже удалено вручную — не критично
+        }
+    }
+
+    const sentMessage = await ctx.reply('Панель управления ботом:', {
         reply_markup: buildMainMenuKeyboard(),
     });
+
+    trackMenu(ctx, chatId, sentMessage.message_id);
 }

@@ -45,3 +45,27 @@ export function extractMentionUsernames(message) {
 
     return usernames;
 }
+
+export function normalizeChannelUsername(input) {
+    const trimmed = input.trim();
+
+    const tMeMatch = trimmed.match(/t\.me\/([a-zA-Z0-9_]+)/i);
+    if (tMeMatch) {
+        return tMeMatch[1].toLowerCase();
+    }
+
+    return trimmed.replace('@', '').toLowerCase();
+}
+
+export function isValidTelegramUsername(username) {
+    if (typeof username !== 'string') return false;
+
+    const clean = username.replace('@', '').trim();
+
+    if (clean.length < 5 || clean.length > 32) return false;
+    if (!/^[a-zA-Z][a-zA-Z0-9_]*$/.test(clean)) return false;
+    if (clean.endsWith('_')) return false;
+    if (clean.includes('__')) return false;
+
+    return true;
+}
