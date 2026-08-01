@@ -4,6 +4,7 @@ import { listOwnerChannels } from '../db/repositories/ownerChannels.js';
 import { extractLinks, getDomain } from '../utils/link-detector.js';
 import { checkIsAdminOrCreator } from '../utils/permissions.js';
 import { recordViolation, countRecentViolations, clearViolations } from '../db/repositories/violations.js';
+import {getCachedAdmins} from "../utils/adminCache.js";
 
 const WARNING_LIFETIME_MS = 12000;
 const VIOLATION_WINDOW_MINUTES = 10;
@@ -25,7 +26,7 @@ export async function handleMessage(ctx) {
     const ownerChannels = new Set(await listOwnerChannels(chatId));
 
     for (const link of links) {
-        const isAllowed = await isLinkAllowed(link, chatId, ownerChannels);
+        const isAllowed = await isLinkAllowed(ctx, link, chatId, ownerChannels);
         if (isAllowed) continue;
 
         try {
@@ -48,23 +49,31 @@ export async function handleMessage(ctx) {
     }
 }
 
-async function isLinkAllowed(link, chatId, ownerChannels) {
-    // Случай 1: голое упоминание вида @username (entity типа mention без t.me/ в тексте)
+async function isLinkAllowed(ctx, link, chatId, ownerChannels) {
     if (link.startsWith('@')) {
         const username = link.slice(1).toLowerCase();
-        return ownerChannels.has(username);
+
+        if (ownerChannels.has(username)) return true;
+
+        const { usernames: adminUsernames } = await getCachedAdmins(ctx, chatId);
+        if (adminUsernames.has(username)) return true;
+
+        return false;
     }
 
     const domain = getDomain(link);
 
-    // Случай 2: ссылка на t.me/telegram.me — проверяем через список разрешённых каналов
     if (domain === 't.me' || domain === 'telegram.me') {
         const tMeMatch = link.match(/t(?:elegram)?\.me\/([a-zA-Z0-9_]+)/i);
         const username = tMeMatch ? tMeMatch[1].toLowerCase() : null;
-        return username ? ownerChannels.has(username) : false;
+        if (!username) return false;
+
+        if (ownerChannels.has(username)) return true;
+
+        const { usernames: adminUsernames } = await getCachedAdmins(ctx, chatId);
+        return adminUsernames.has(username);
     }
 
-    // Случай 3: обычная внешняя ссылка — проверяем через доменный вайтлист
     if (domain) {
         return isDomainWhitelisted(chatId, domain);
     }
