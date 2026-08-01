@@ -1,15 +1,13 @@
-import {ensureChat, getChatSettings} from '../db/repositories/chats.js';
-import {isDomainWhitelisted} from '../db/repositories/whitelist.js';
-import {extractLinks, extractMentionUsernames, getDomain} from '../utils/link-detector.js';
-import {clearViolations, countRecentViolations, recordViolation} from '../db/repositories/violations.js';
-import {checkIsAdminOrCreator} from "../utils/permissions.js";
-import {getCachedAdmins} from "../utils/adminCache.js";
-import {listOwnerChannels} from "../db/repositories/ownerChannels.js";
+import { getChatSettings, ensureChat } from '../db/repositories/chats.js';
+import { isDomainWhitelisted } from '../db/repositories/whitelist.js';
+import { listOwnerChannels } from '../db/repositories/ownerChannels.js';
+import { extractLinks, getDomain } from '../utils/link-detector.js';
+import { checkIsAdminOrCreator } from '../utils/permissions.js';
+import { recordViolation, countRecentViolations, clearViolations } from '../db/repositories/violations.js';
 
 const WARNING_LIFETIME_MS = 12000;
 const VIOLATION_WINDOW_MINUTES = 10;
 const VIOLATIONS_BEFORE_MUTE = 3;
-const MUTE_DURATION_MINUTES = null;
 
 export async function handleMessage(ctx) {
     const chatId = ctx.chat.id;
@@ -18,48 +16,17 @@ export async function handleMessage(ctx) {
     await ensureChat(chatId);
     const settings = await getChatSettings(chatId);
     if (!settings?.filter_enabled) return;
+
     if (await checkIsAdminOrCreator(ctx, userId)) return;
-
-    const mentionedUsernames = extractMentionUsernames(ctx.message);
-
-    if (mentionedUsernames.length > 0) {
-        const { usernames: adminUsernames } = await getCachedAdmins(ctx, chatId);
-        const ownerChannels = await listOwnerChannels(chatId);
-        const ownerChannelsSet = new Set(ownerChannels);
-
-        const hasDisallowedMention = mentionedUsernames.some(u => {
-            if (adminUsernames.has(u)) return false;
-            if (ownerChannelsSet.has(u)) return false;
-            return true;
-        });
-
-        if (hasDisallowedMention) {
-            try {
-                await ctx.deleteMessage();
-            } catch (err) {
-                console.error('Не удалось удалить сообщение с упоминанием:', err.message);
-                return;
-            }
-
-            await recordViolation(chatId, userId);
-            const violations = await countRecentViolations(chatId, userId, VIOLATION_WINDOW_MINUTES);
-
-            if (violations >= VIOLATIONS_BEFORE_MUTE) {
-                await muteUser(ctx, userId);
-            } else {
-                await sendAutoDeleteWarning(ctx, violations);
-            }
-
-            return;
-        }
-    }
 
     const links = extractLinks(ctx.message);
     if (links.length === 0) return;
 
+    const ownerChannels = new Set(await listOwnerChannels(chatId));
+
     for (const link of links) {
-        const domain = getDomain(link);
-        if (domain && (await isDomainWhitelisted(chatId, domain))) continue;
+        const isAllowed = await isLinkAllowed(link, chatId, ownerChannels);
+        if (isAllowed) continue;
 
         try {
             await ctx.deleteMessage();
@@ -81,13 +48,36 @@ export async function handleMessage(ctx) {
     }
 }
 
-async function muteUser(ctx, userId) {
-    const untilDate = Math.floor(Date.now() / 1000) + MUTE_DURATION_MINUTES * 60;
+async function isLinkAllowed(link, chatId, ownerChannels) {
+    // Случай 1: голое упоминание вида @username (entity типа mention без t.me/ в тексте)
+    if (link.startsWith('@')) {
+        const username = link.slice(1).toLowerCase();
+        return ownerChannels.has(username);
+    }
 
+    const domain = getDomain(link);
+
+    // Случай 2: ссылка на t.me/telegram.me — проверяем через список разрешённых каналов
+    if (domain === 't.me' || domain === 'telegram.me') {
+        const tMeMatch = link.match(/t(?:elegram)?\.me\/([a-zA-Z0-9_]+)/i);
+        const username = tMeMatch ? tMeMatch[1].toLowerCase() : null;
+        return username ? ownerChannels.has(username) : false;
+    }
+
+    // Случай 3: обычная внешняя ссылка — проверяем через доменный вайтлист
+    if (domain) {
+        return isDomainWhitelisted(chatId, domain);
+    }
+
+    return false;
+}
+
+async function muteUser(ctx, userId) {
     try {
         await ctx.api.restrictChatMember(
             ctx.chat.id,
-            userId, {
+            userId,
+            {
                 can_send_messages: false,
                 can_send_audios: false,
                 can_send_documents: false,
@@ -98,16 +88,15 @@ async function muteUser(ctx, userId) {
                 can_send_polls: false,
                 can_send_other_messages: false,
                 can_add_web_page_previews: false,
-            },
-            // {until_date: untilDate} //mute user without time
+            }
+            // until_date не передаём — мут бессрочный
         );
 
         await clearViolations(ctx.chat.id, userId);
 
         await ctx.reply(
-            // `${nameOrMention(ctx.from)} получил мьют на ${MUTE_DURATION_MINUTES} мин. за повторную отправку ссылок.`
-            `${nameOrMention(ctx.from)} ограничен за повторную отправку ссылок.`
-    );
+            `${nameOrMention(ctx.from)} получил перманентный мут за повторную отправку ссылок. Снять может только администратор вручную.`
+        );
     } catch (err) {
         console.error('Не удалось замьютить пользователя:', err.message);
     }
@@ -116,9 +105,9 @@ async function muteUser(ctx, userId) {
 async function sendAutoDeleteWarning(ctx, violations) {
     try {
         const warning = await ctx.reply(
-            `${nameOrMention(ctx.from)}, отправлять ссылки в этом чате запрещено.
-        Нарушение ${violations}/${VIOLATIONS_BEFORE_MUTE} — при следующем будете замьючены навсегда.`
-    );
+            `${nameOrMention(ctx.from)}, отправлять ссылки в этом чате запрещено. ` +
+            `Нарушение ${violations}/${VIOLATIONS_BEFORE_MUTE} — при следующем будет мут.`
+        );
 
         setTimeout(async () => {
             try {

@@ -9,7 +9,7 @@ export function extractLinks(message) {
         } else if (e.type === 'text_link') {
             links.push(e.url);
         } else if (e.type === 'mention') {
-            links.push(text.slice(e.offset, e.offset + e.length)); // @username
+            links.push(text.slice(e.offset, e.offset + e.length)); // вернёт "@username" целиком
         }
     }
     return links;

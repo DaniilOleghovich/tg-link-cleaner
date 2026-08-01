@@ -1,5 +1,5 @@
 import { InlineKeyboard } from 'grammy';
-import {getTrackedMenu} from "../utils/menuTracker.js";
+import {getTrackedMenu, trackMenu} from "../utils/menuTracker.js";
 
 export function buildMainMenuKeyboard() {
     return new InlineKeyboard()
