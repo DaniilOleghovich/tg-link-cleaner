@@ -3,16 +3,26 @@ import { isDomainWhitelisted } from '../db/repositories/whitelist.js';
 import { listOwnerChannels } from '../db/repositories/ownerChannels.js';
 import { extractLinks, getDomain } from '../utils/link-detector.js';
 import { checkIsAdminOrCreator } from '../utils/permissions.js';
+import { getCachedAdmins } from '../utils/adminCache.js';
 import { recordViolation, countRecentViolations, clearViolations } from '../db/repositories/violations.js';
-import {getCachedAdmins} from "../utils/adminCache.js";
 
 const WARNING_LIFETIME_MS = 12000;
 const VIOLATION_WINDOW_MINUTES = 10;
 const VIOLATIONS_BEFORE_MUTE = 3;
 
+// Используется и для новых сообщений (message), и для отредактированных
+// (edited_message) — ссылка/превью может быть добавлена или изменена
+// уже после отправки исходного сообщения
 export async function handleMessage(ctx) {
     const chatId = ctx.chat.id;
-    const userId = ctx.from.id;
+    const userId = ctx.from?.id;
+
+    // Защита от сбоя, если у сообщения нет обычного отправителя
+    // (например, анонимный админ или служебные сообщения)
+    if (!userId) {
+        console.warn('Сообщение без ctx.from, пропускаю:', JSON.stringify(ctx.message, null, 2));
+        return;
+    }
 
     await ensureChat(chatId);
     const settings = await getChatSettings(chatId);
@@ -20,6 +30,24 @@ export async function handleMessage(ctx) {
 
     if (await checkIsAdminOrCreator(ctx, userId)) return;
 
+    // 1. Пересланные истории (Stories) — блокируем всегда, независимо от комментария
+    if (ctx.message.story) {
+        return handleViolation(ctx, chatId, userId, 'story');
+    }
+
+    // 2. Форвард из канала, не входящего в вайтлист владельца — блокируем
+    //    независимо от того, есть ли в сообщении ссылка
+    if (ctx.message.forward_origin?.type === 'channel') {
+        const sourceUsername = ctx.message.forward_origin.chat?.username?.toLowerCase();
+        const ownerChannels = new Set(await listOwnerChannels(chatId));
+        const isAllowedSource = sourceUsername && ownerChannels.has(sourceUsername);
+
+        if (!isAllowedSource) {
+            return handleViolation(ctx, chatId, userId, 'forward');
+        }
+    }
+
+    // 3. Обычная проверка ссылок/упоминаний — из текста, подписи и превью
     const links = extractLinks(ctx.message);
     if (links.length === 0) return;
 
@@ -29,26 +57,15 @@ export async function handleMessage(ctx) {
         const isAllowed = await isLinkAllowed(ctx, link, chatId, ownerChannels);
         if (isAllowed) continue;
 
-        try {
-            await ctx.deleteMessage();
-        } catch (err) {
-            console.error('Не удалось удалить сообщение:', err.message);
-            return;
-        }
-
-        await recordViolation(chatId, userId);
-        const violations = await countRecentViolations(chatId, userId, VIOLATION_WINDOW_MINUTES);
-
-        if (violations >= VIOLATIONS_BEFORE_MUTE) {
-            await muteUser(ctx, userId);
-        } else {
-            await sendAutoDeleteWarning(ctx, violations);
-        }
-
-        return;
+        return handleViolation(ctx, chatId, userId, 'links');
     }
 }
 
+// Проверяет, разрешена ли конкретная ссылка/упоминание:
+// - @username админа/владельца или разрешённого канала — ок
+// - t.me/username разрешённого канала — ок
+// - обычный внешний домен из вайтлиста доменов — ок
+// - всё остальное — нет
 async function isLinkAllowed(ctx, link, chatId, ownerChannels) {
     if (link.startsWith('@')) {
         const username = link.slice(1).toLowerCase();
@@ -81,6 +98,33 @@ async function isLinkAllowed(ctx, link, chatId, ownerChannels) {
     return false;
 }
 
+// Общая обработка нарушения: удаление сообщения, запись страйка,
+// предупреждение или перманентный мут при достижении лимита
+async function handleViolation(ctx, chatId, userId, reason) {
+    console.log('Пытаюсь удалить:', {
+        messageId: ctx.message.message_id,
+        updateType: ctx.update.edited_message ? 'edited_message' : 'message',
+        text: ctx.message.text,
+    });
+
+    try {
+        await ctx.deleteMessage();
+    } catch (err) {
+        console.error('Не удалось удалить сообщение:', err.message);
+        console.error('ПОЛНАЯ ошибка удаления:', JSON.stringify(err, null, 2));
+        return;
+    }
+
+    await recordViolation(chatId, userId);
+    const violations = await countRecentViolations(chatId, userId, VIOLATION_WINDOW_MINUTES);
+
+    if (violations >= VIOLATIONS_BEFORE_MUTE) {
+        await muteUser(ctx, userId);
+    } else {
+        await sendAutoDeleteWarning(ctx, violations, reason);
+    }
+}
+
 async function muteUser(ctx, userId) {
     try {
         await ctx.api.restrictChatMember(
@@ -98,24 +142,31 @@ async function muteUser(ctx, userId) {
                 can_send_other_messages: false,
                 can_add_web_page_previews: false,
             }
-            // until_date не передаём — мут бессрочный
+            // until_date не передаём — мут бессрочный, снимается только вручную
         );
 
         await clearViolations(ctx.chat.id, userId);
 
         await ctx.reply(
-            `${nameOrMention(ctx.from)} получил перманентный мут за повторную отправку ссылок. Снять может только администратор вручную.`
+            `${nameOrMention(ctx.from)} получил перманентный бан за повторные нарушения. Снять может только администратор вручную.`
         );
     } catch (err) {
         console.error('Не удалось замьютить пользователя:', err.message);
     }
 }
 
-async function sendAutoDeleteWarning(ctx, violations) {
+// Текст предупреждения зависит от причины удаления
+async function sendAutoDeleteWarning(ctx, violations, reason = 'links') {
+    const reasonTexts = {
+        links: 'отправлять ссылки в этом чате запрещено',
+        story: 'пересылать истории в этом чате запрещено',
+        forward: 'пересылать сообщения из посторонних каналов запрещено',
+    };
+
     try {
         const warning = await ctx.reply(
-            `${nameOrMention(ctx.from)}, отправлять ссылки в этом чате запрещено. ` +
-            `Нарушение ${violations}/${VIOLATIONS_BEFORE_MUTE} — при следующем будет мут.`
+            `${nameOrMention(ctx.from)}, ${reasonTexts[reason] ?? reasonTexts.links}. ` +
+            `Нарушение ${violations}/${VIOLATIONS_BEFORE_MUTE} — при следующем будет бессрочный мьют.`
         );
 
         setTimeout(async () => {
