@@ -18,7 +18,7 @@ export async function handleMessage(ctx) {
     const userId = ctx.from?.id;
 
     // Защита от сбоя, если у сообщения нет обычного отправителя
-    // (например, анонимный админ или служебные сообщения)
+    // (например, служебные сообщения без ctx.from вообще)
     if (!userId) {
         console.warn('Сообщение без ctx.from, пропускаю:', JSON.stringify(ctx.message, null, 2));
         return;
@@ -27,6 +27,28 @@ export async function handleMessage(ctx) {
     await ensureChat(chatId);
     const settings = await getChatSettings(chatId);
     if (!settings?.filter_enabled) return;
+
+    const ownerChannels = new Set(await listOwnerChannels(chatId));
+
+    // 0. Сообщение отправлено "от имени канала" (Send as Channel).
+    //    В этом случае ctx.from — служебный Channel_Bot, а не реальный юзер,
+    //    поэтому обрабатываем этот случай отдельно, до обычных проверок.
+    if (ctx.message.sender_chat) {
+        const senderChatUsername = ctx.message.sender_chat.username?.toLowerCase();
+
+        if (senderChatUsername && ownerChannels.has(senderChatUsername)) {
+            return; // разрешённый канал владельца — пропускаем полностью
+        }
+
+        // Посторонний канал — удаляем сообщение, но не пытаемся записать
+        // нарушение на userId (там служебный ID, мутить его бессмысленно)
+        try {
+            await ctx.deleteMessage();
+        } catch (err) {
+            console.error('Не удалось удалить сообщение от постороннего канала:', err.message);
+        }
+        return;
+    }
 
     if (await checkIsAdminOrCreator(ctx, userId)) return;
 
@@ -39,19 +61,24 @@ export async function handleMessage(ctx) {
     //    независимо от того, есть ли в сообщении ссылка
     if (ctx.message.forward_origin?.type === 'channel') {
         const sourceUsername = ctx.message.forward_origin.chat?.username?.toLowerCase();
-        const ownerChannels = new Set(await listOwnerChannels(chatId));
-        const isAllowedSource = sourceUsername && ownerChannels.has(sourceUsername);
-
-        if (!isAllowedSource) {
+        if (!(sourceUsername && ownerChannels.has(sourceUsername))) {
             return handleViolation(ctx, chatId, userId, 'forward');
+        }
+    }
+
+    // 2b. Реплай на сообщение, которое само является форвардом из чужого канала —
+    //     блокируем независимо от содержимого самого реплая (даже если это эмодзи)
+    const repliedForwardOrigin = ctx.message.reply_to_message?.forward_origin;
+    if (repliedForwardOrigin?.type === 'channel') {
+        const sourceUsername = repliedForwardOrigin.chat?.username?.toLowerCase();
+        if (!(sourceUsername && ownerChannels.has(sourceUsername))) {
+            return handleViolation(ctx, chatId, userId, 'reply_to_forward');
         }
     }
 
     // 3. Обычная проверка ссылок/упоминаний — из текста, подписи и превью
     const links = extractLinks(ctx.message);
     if (links.length === 0) return;
-
-    const ownerChannels = new Set(await listOwnerChannels(chatId));
 
     for (const link of links) {
         const isAllowed = await isLinkAllowed(ctx, link, chatId, ownerChannels);
@@ -98,20 +125,14 @@ async function isLinkAllowed(ctx, link, chatId, ownerChannels) {
     return false;
 }
 
-// Общая обработка нарушения: удаление сообщения, запись страйка,
-// предупреждение или перманентный мут при достижении лимита
+// Общая обработка нарушения: удаление сообщения (с ретраем на случай, если
+// Telegram временно отвечает "message can't be deleted" во время генерации
+// превью), запись страйка, предупреждение или перманентный мут при лимите
 async function handleViolation(ctx, chatId, userId, reason) {
-    console.log('Пытаюсь удалить:', {
-        messageId: ctx.message.message_id,
-        updateType: ctx.update.edited_message ? 'edited_message' : 'message',
-        text: ctx.message.text,
-    });
-
     try {
-        await ctx.deleteMessage();
+        await deleteMessageWithRetry(ctx);
     } catch (err) {
         console.error('Не удалось удалить сообщение:', err.message);
-        console.error('ПОЛНАЯ ошибка удаления:', JSON.stringify(err, null, 2));
         return;
     }
 
@@ -122,6 +143,22 @@ async function handleViolation(ctx, chatId, userId, reason) {
         await muteUser(ctx, userId);
     } else {
         await sendAutoDeleteWarning(ctx, violations, reason);
+    }
+}
+
+async function deleteMessageWithRetry(ctx, retries = 3, delayMs = 500) {
+    for (let attempt = 0; attempt < retries; attempt++) {
+        try {
+            await ctx.deleteMessage();
+            return;
+        } catch (err) {
+            const isTransient = err.description?.includes("message can't be deleted");
+            if (isTransient && attempt < retries - 1) {
+                await new Promise(resolve => setTimeout(resolve, delayMs));
+                continue;
+            }
+            throw err;
+        }
     }
 }
 
@@ -161,12 +198,13 @@ async function sendAutoDeleteWarning(ctx, violations, reason = 'links') {
         links: 'отправлять ссылки в этом чате запрещено',
         story: 'пересылать истории в этом чате запрещено',
         forward: 'пересылать сообщения из посторонних каналов запрещено',
+        reply_to_forward: 'отвечать на сообщения из посторонних каналов запрещено',
     };
 
     try {
         const warning = await ctx.reply(
             `${nameOrMention(ctx.from)}, ${reasonTexts[reason] ?? reasonTexts.links}. ` +
-            `Нарушение ${violations}/${VIOLATIONS_BEFORE_MUTE} — при следующем будет бессрочный мьют.`
+            `Нарушение ${violations}/${VIOLATIONS_BEFORE_MUTE} — при следующем будет мьют.`
         );
 
         setTimeout(async () => {
