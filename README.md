@@ -8,8 +8,10 @@ A Telegram moderation bot that detects and removes links, unauthorized channel/u
 - ✅ **Domain whitelist** — allow specific external domains (e.g. your own website) per chat
 - 📢 **Owner channels whitelist** — allow specific Telegram channels (by `@username` or `t.me/username` link) to be mentioned or linked; supports adding multiple channels one at a time, with format validation against Telegram's username rules
 - 👮 **Admin & creator bypass** — chat administrators and the chat owner can post links and mention anyone freely; their admin status (including usernames) is cached briefly to avoid hitting the Telegram API on every message
-- 🔁 **Forwarded content control** — blocks forwarded Stories outright, and blocks forwarded posts from any channel not on the owner-channels whitelist, regardless of whether the message contains a link
+- 📡 **"Send as Channel" handling** — messages posted using Telegram's "send as channel" feature are checked against the sender channel's own identity (not the anonymous service account behind them): allowed if the channel is on the owner-channels whitelist, otherwise silently removed without trying to log a violation against a non-real user
+- 🔁 **Forwarded content control** — blocks forwarded Stories outright, blocks forwarded posts from any channel not on the owner-channels whitelist regardless of message content, and blocks any reply to a message that was itself forwarded from a non-whitelisted channel (even a reply consisting only of emoji)
 - ✏️ **Edited-message coverage** — the same checks run on message edits, catching cases where a link preview is added or left behind after editing
+- 🔄 **Delete retry** — if Telegram briefly rejects a deletion (e.g. while it's still generating a link preview), the bot retries a few times before giving up
 - ⏱️ **Auto-deleting warning** — after a violation, a warning is posted and automatically removed a few seconds later; the wording adapts to the reason (link, forwarded story, forwarded channel)
 - 🚫 **Permanent mute after 3 strikes** — a user who triggers the filter 3 times within a 10-minute window is muted indefinitely; only an admin can lift it manually. The violation counter is cleared right after a successful mute.
 - 🤖 **Join-time captcha** — new members are restricted on join and must press a verification button (only they can press their own button) to start writing; can be toggled on/off per chat
@@ -139,11 +141,13 @@ Commands only work in groups, not in a private chat with the bot.
 
 ### What gets checked, and where
 
-Every incoming message (and every edit to it) is scanned for:
+Every incoming message (and every edit to it) is scanned in this order:
 
+0. **"Send as channel" messages** — if `sender_chat` is present, the sending user is actually Telegram's anonymous channel service account, not a real person, so this is checked first and separately. If the sending channel is on the owner-channels whitelist, the message is allowed. Otherwise it's deleted immediately — without recording a violation, since there's no real user ID to attach a strike to.
 1. **Forwarded Stories** — blocked outright, no exceptions besides admins/creator.
 2. **Forwards from channels** — if the forward's origin is a channel not on the owner-channels whitelist, the message is blocked regardless of its text content.
-3. **Links and mentions**, pulled from three places:
+3. **Replies to a forwarded post** — if the message being replied to was itself forwarded from a non-whitelisted channel, the reply is blocked too, even if the reply itself is just emoji with no text or links (this closes off using reactions/replies to a forwarded promo post as a workaround).
+4. **Links and mentions**, pulled from three places:
    - the message text (`entities`)
    - a media caption (`caption_entities`) — covers photos, videos, and forwarded Stories with a comment
    - the link preview (`link_preview_options.url`) — covers the case where a link's text is deleted but its preview is left attached to the message
@@ -153,13 +157,13 @@ Each link/mention found is checked in this order:
 - Is it a regular external domain on the domain whitelist? → allowed
 - Otherwise → violation
 
-Admins and the chat creator bypass all of the above entirely.
+Admins and the chat creator bypass steps 1–4 entirely (checked right after the "send as channel" step, since that step needs to run first regardless of admin status).
 
 ### Violations & muting
 
 1. On a violation, the message is deleted (with a short retry if Telegram briefly reports it "can't be deleted" — this can happen while Telegram is still generating the link preview).
 2. A violation is recorded for that user, chat-scoped and timestamped.
-3. A warning is posted and auto-deleted after ~12 seconds, with wording that matches the reason (link, forwarded story, forwarded channel).
+3. A warning is posted and auto-deleted after ~12 seconds, with wording that matches the reason (link, forwarded story, forwarded channel, reply to a forwarded channel post).
 4. If the user has 3 violations within the last 10 minutes, they are **muted indefinitely** instead of just warned, and their violation counter is cleared. Only an admin can lift the mute manually — there is no automatic un-mute.
 
 ### Owner channels
